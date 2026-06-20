@@ -89,7 +89,20 @@ def _parts_match(claimed: str, detected: str) -> bool:
     """
     if not claimed or not detected:
         return False
-    return claimed.lower().strip() == detected.lower().strip()
+        
+    claimed_lower = claimed.lower().strip()
+    detected_lower = detected.lower().strip()
+    
+    # Exact match
+    if claimed_lower == detected_lower:
+        return True
+        
+    # Substring containment
+    if claimed_lower in detected_lower or detected_lower in claimed_lower:
+        return True
+        
+    # Common equivalences (e.g., bumper to front_bumper/rear_bumper handled by substring)
+    return False
 
 
 # ============================================================================
@@ -222,6 +235,18 @@ def determine_claim_status(
     # unknown claimed parts more gracefully instead of
     # immediately treating them as contradictions.
     
+    risk_flags = evidence_result.get("risk_flags", [])
+    
+    # Rule 0a: VLM explicit contradictions
+    if "wrong_object" in risk_flags:
+        return ("contradicted", "Image does not show the claimed object")
+    if "claim_mismatch" in risk_flags:
+        return ("contradicted", "Visual evidence contradicts the claim")
+    
+    # Rule 0b: VLM lack of visibility
+    if "damage_not_visible" in risk_flags or "blurry_image" in risk_flags or "wrong_angle" in risk_flags:
+        return ("not_enough_information", "Image quality issues or damage not visible")
+
     # Rule 1: No valid images or issue not detected
     if not valid_image or detected_issue == "unknown":
         return (

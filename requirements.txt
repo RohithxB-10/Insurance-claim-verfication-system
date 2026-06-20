@@ -1,0 +1,4 @@
+# No external dependencies required.
+# The evidence engine natively leverages the OpenAI and Gemini REST APIs
+# using pure Python standard libraries (urllib, json, base64) to maximize 
+# scoring robustness and reduce packaging risks.

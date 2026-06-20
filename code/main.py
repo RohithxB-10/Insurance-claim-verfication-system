@@ -193,6 +193,7 @@ def process_claim_row(
             image_paths=absolute_image_paths,
             claim_object=claim_object,
             claim_result=claim_result,
+            user_claim=user_claim,
         )
     except Exception as exc:
         logger.warning(
