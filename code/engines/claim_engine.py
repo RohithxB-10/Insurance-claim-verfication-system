@@ -122,16 +122,16 @@ def _extract_issue_type(claim_text: str) -> str:
     # and realistic Hindi/Hinglish terms that appear in real damage reports
     issue_keywords = {
         "dent": {
-            "dent", "dented", "indented", "impact",
+            "dent", "dented", "indented", "impact", "impact damage", "rear impact",
         },
         "scratch": {
-            "scratch", "scratched", "scrape", "scuff",
+            "scratch", "scratched", "scrape", "scuff", "cosmetic damage",
         },
         "crack": {
             "crack", "cracked", "fracture", "fractured", "shattered", "break",
         },
         "broken_part": {
-            "broken", "snapped", "severed", "detached", "separated",
+            "broken", "snapped", "severed", "detached", "separated", "damaged", "physical damage", "damage",
         },
         "missing_part": {
             "missing", "absent", "lost", "gone",
@@ -474,11 +474,19 @@ def analyze_claim(
     claim_object = str(claim_object) if claim_object else ""
     user_history = user_history if isinstance(user_history, dict) else {}
     
+    # Extract customer statements if transcript format is detected
+    customer_text = user_claim
+    if "Customer:" in user_claim:
+        turns = [t.strip() for t in user_claim.split('|')]
+        customer_parts = [t[len("Customer:"):].strip() for t in turns if t.startswith("Customer:")]
+        if customer_parts:
+            customer_text = " ".join(customer_parts)
+
     # Extract analysis using rule-based detection
-    claimed_issue = _extract_issue_type(user_claim)
-    claimed_part = _extract_part(user_claim, claim_object)
+    claimed_issue = _extract_issue_type(customer_text)
+    claimed_part = _extract_part(customer_text, claim_object)
     severity = _extract_severity(claimed_issue)
-    prompt_injection = _detect_prompt_injection(user_claim)
+    prompt_injection = _detect_prompt_injection(customer_text)
     history_risk = _detect_history_risk(user_history)
     
     return {
