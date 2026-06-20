@@ -112,6 +112,14 @@ You are free to use any language or runtime. Python, JavaScript, and TypeScript 
 
 ## Evaluation
 
+How to run the evaluation workflow:
+
+```bash
+python code/evaluation/main.py
+```
+
+This workflow runs the claim verification pipeline against the labeled `dataset/sample_claims.csv` to calculate the final accuracy of the `claim_status` predictions against the expected outcomes. It prints out the total number of claims processed, execution time, and accuracy percentage.
+
 The evaluation report should include:
 
 - metrics on `dataset/sample_claims.csv`
