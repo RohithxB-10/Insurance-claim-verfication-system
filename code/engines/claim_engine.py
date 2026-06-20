@@ -161,6 +161,25 @@ def _extract_issue_type(claim_text: str) -> str:
     return "unknown"
 
 
+def _extract_severity(issue_type: str) -> str:
+    """
+    Extract severity based on the claimed issue type.
+    
+    Args:
+        issue_type: The detected issue type.
+        
+    Returns:
+        The severity level ("high", "medium", "low", or "unknown").
+    """
+    if issue_type in {"broken_part", "missing_part", "crack"}:
+        return "high"
+    if issue_type == "dent":
+        return "medium"
+    if issue_type in {"scratch", "stain"}:
+        return "low"
+    return "unknown"
+
+
 def _extract_part(claim_text: str, claim_object: str) -> str:
     """
     Extract the claimed object part from the claim text.
@@ -458,12 +477,14 @@ def analyze_claim(
     # Extract analysis using rule-based detection
     claimed_issue = _extract_issue_type(user_claim)
     claimed_part = _extract_part(user_claim, claim_object)
+    severity = _extract_severity(claimed_issue)
     prompt_injection = _detect_prompt_injection(user_claim)
     history_risk = _detect_history_risk(user_history)
     
     return {
         "claimed_issue": claimed_issue,
         "claimed_part": claimed_part,
+        "severity": severity,
         "prompt_injection": prompt_injection,
         "history_risk": history_risk,
     }

@@ -29,20 +29,20 @@ from typing import Any
 
 # ---------------------------------------------------------------------------
 # Sys-path bootstrapping
-# Ensure repo root is on the path so both `code.engines.*` and `code.utils.*`
+# Ensure the code/ directory is on the path so `engines.*` and `utils.*`
 # imports resolve correctly regardless of the working directory used to invoke
 # this script.
 # ---------------------------------------------------------------------------
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+_CODE_DIR = Path(__file__).resolve().parents[0]
+if str(_CODE_DIR) not in sys.path:
+    sys.path.insert(0, str(_CODE_DIR))
 
 import pandas as pd
 
-from code.engines.claim_engine import analyze_claim
-from code.engines.evidence_engine import analyze_images
-from code.engines.review_engine import review_claim
-from code.utils.csv_loader import (
+from engines.claim_engine import analyze_claim
+from engines.evidence_engine import analyze_images
+from engines.review_engine import review_claim
+from utils.csv_loader import (
     create_dataset_paths,
     load_claims,
     load_evidence_requirements,
@@ -84,6 +84,40 @@ OUTPUT_COLUMNS: list[str] = [
 
 
 # ---------------------------------------------------------------------------
+# Image-path helper
+# ---------------------------------------------------------------------------
+
+def _rebase_image_paths(image_paths: str, dataset_dir: Path) -> str:
+    """
+    Rebase semicolon-separated relative image paths onto the dataset directory.
+
+    claims.csv stores paths relative to dataset/ (e.g. "images/test/case_001/img_1.jpg").
+    evidence_engine resolves paths with Path.resolve(), which anchors to CWD (repo root),
+    producing the wrong absolute path.  Prepending dataset_dir corrects this before the
+    paths reach the engine.
+
+    Args:
+        image_paths: Semicolon-separated path string from claims.csv.
+        dataset_dir: Absolute Path to the dataset/ directory.
+
+    Returns:
+        Semicolon-separated string of absolute paths rooted at dataset_dir.
+        Already-absolute paths are passed through unchanged.
+    """
+    rebased: list[str] = []
+    for p in image_paths.split(";"):
+        p = p.strip()
+        if not p:
+            continue
+        path_obj = Path(p)
+        if path_obj.is_absolute():
+            rebased.append(str(path_obj))
+        else:
+            rebased.append(str(dataset_dir / path_obj))
+    return ";".join(rebased)
+
+
+# ---------------------------------------------------------------------------
 # Row-level processor
 # ---------------------------------------------------------------------------
 
@@ -91,6 +125,7 @@ def process_claim_row(
     row: pd.Series,
     user_history_map: dict[str, dict[str, Any]],
     evidence_requirements: dict[str, dict[str, Any]],
+    dataset_dir: Path,
 ) -> dict[str, Any]:
     """
     Process a single claim row through all three analysis engines.
@@ -110,8 +145,8 @@ def process_claim_row(
     Notes:
         - All exceptions within a row are caught; on failure the row is emitted
           with safe fallback values so the overall pipeline never halts.
-        - image_paths are passed as-is (semicolon-separated string) to the
-          evidence engine, which handles parsing internally.
+        - image_paths are rebased onto dataset_dir before being passed to the
+          evidence engine so that Path.resolve() produces correct absolute paths.
     """
     # ---- Extract fields from the CSV row ----------------------------------
     user_id: str = str(row.get("user_id", "")).strip()
@@ -150,10 +185,14 @@ def process_claim_row(
         }
 
     # ---- Stage 2: Image / evidence analysis -------------------------------
+    # Rebase relative paths onto dataset_dir so evidence_engine.Path.resolve()
+    # produces the correct absolute path (claims.csv paths are relative to dataset/).
+    absolute_image_paths: str = _rebase_image_paths(image_paths, dataset_dir)
     try:
         evidence_result: dict[str, Any] = analyze_images(
-            image_paths=image_paths,
+            image_paths=absolute_image_paths,
             claim_object=claim_object,
+            claim_result=claim_result,
         )
     except Exception as exc:
         logger.warning(
@@ -280,6 +319,9 @@ def run_pipeline() -> None:
     output_rows: list[dict[str, Any]] = []
     errors: list[tuple[int, str]] = []  # (row_index, error_message)
 
+    # Resolve dataset/ directory once; used to rebase relative image paths.
+    dataset_dir: Path = create_dataset_paths()["claims"].parent
+
     logger.info("Processing %d claim(s)...", len(claims_df))
 
     for idx, row in claims_df.iterrows():
@@ -291,6 +333,7 @@ def run_pipeline() -> None:
                 row=row,
                 user_history_map=user_history_map,
                 evidence_requirements=evidence_requirements,
+                dataset_dir=dataset_dir,
             )
             output_rows.append(output_row)
             logger.debug("Row %d (user_id=%s): OK", row_num, user_id_label)

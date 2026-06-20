@@ -328,6 +328,7 @@ def prepare_images_for_vlm(image_paths: str) -> List[str]:
 def analyze_images(
     image_paths: str,
     claim_object: str,
+    claim_result: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """
     Main entry point for image analysis.
@@ -415,11 +416,12 @@ def analyze_images(
             seen.add(flag)
     
     # Prepare response
+    claim_result = claim_result or {}
     result = {
         "valid_image": validation_result["valid_image"],
-        "issue_type": "unknown",        # TODO: Integrate with VLM for damage classification
-        "object_part": "unknown",       # TODO: Integrate with VLM for part detection
-        "severity": "unknown",          # TODO: Integrate with VLM for severity assessment
+        "issue_type": claim_result.get("claimed_issue", "unknown"),
+        "object_part": claim_result.get("claimed_part", "unknown"),
+        "severity": claim_result.get("severity", "unknown"),
         "risk_flags": unique_risk_flags,
         "supporting_image_ids": valid_image_ids,  # Only valid images
     }
